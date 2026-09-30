@@ -20,8 +20,42 @@
     </div>
   </aside>
 
+  <button id="sky-toggle" class="sky-toggle" type="button" aria-controls="sky-drawer"
+          aria-expanded="false" aria-label="Ouvrir la carte du ciel">
+    <span class="sky-toggle-label note" aria-hidden="true">carte du ciel</span>
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path class="cst-line" d="M4.5 17 9.5 10.5 15 13.5 19.5 5.5M15 13.5 17.5 19.5"/>
+      <circle class="cst-star" style="animation-delay:-.4s" cx="4.5" cy="17" r="1.7"/>
+      <circle class="cst-star" style="animation-delay:-1.8s" cx="9.5" cy="10.5" r="1.4"/>
+      <circle class="cst-star" style="animation-delay:-1.1s" cx="15" cy="13.5" r="1.9"/>
+      <circle class="cst-star" style="animation-delay:-2.4s" cx="19.5" cy="5.5" r="1.5"/>
+      <circle class="cst-star" style="animation-delay:-.9s" cx="17.5" cy="19.5" r="1.3"/>
+    </svg>
+  </button>
+
+  <aside id="sky-drawer" class="sky-drawer" aria-label="Carte du ciel" inert>
+    <div class="sky-drawer-inner">
+      <header class="sky-head">
+        <div>
+          <h2>Carte du ciel</h2>
+          <p class="note">prochain passage de l'ISS</p>
+        </div>
+        <button id="sky-close" class="icon-btn" type="button" aria-label="Replier la carte du ciel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 5 7 7-7 7M13 5l7 7-7 7"/></svg>
+        </button>
+      </header>
+
+      <div class="sky-wrap">
+        <svg id="sky" viewBox="0 0 400 400" role="img" aria-label="Carte du ciel : trajectoire de l'ISS"></svg>
+      </div>
+      <p id="infos" class="infos" role="status"></p>
+      <p class="note legend">vue vers le haut : centre = zénith, bord = horizon ·
+        trait plein = ISS visible à l'œil nu, pointillés = non visible</p>
+      <button id="carte-btn" type="button" class="link">actualiser</button>
+    </div>
+  </aside>
+
   <main class="stage">
-    <a class="corner-link note" href="/carte">carte du ciel →</a>
     <header class="hero">
       <h1>SkyWatch</h1>
       <p class="tagline">Que voir ce soir dans le ciel ?</p>
@@ -46,5 +80,6 @@
   </main>
 
   <script src="{{ url_for('static', path='app.js') }}"></script>
+  <script src="{{ url_for('static', path='carte.js') }}"></script>
 </body>
 </html>

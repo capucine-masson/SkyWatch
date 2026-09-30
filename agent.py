@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -17,6 +18,8 @@ GROQ_TIMEOUT = 30.0
 MAX_TURNS = 6
 TOOL_TIMEOUT = 120.0        # 1er appel : téléchargement unique de l'éphéméride (~17 Mo)
 MAX_TOOL_CHARS = 8000
+RATE_RETRIES = 3            # relances max sur limite de débit Groq (429)
+MAX_RATE_WAIT = 20.0        # secondes d'attente max par relance
 
 SERVER = StdioServerParameters(
     command=sys.executable, args=[str(BASE_DIR / "skywatch_mcp.py")], cwd=str(BASE_DIR)
@@ -29,6 +32,29 @@ def to_groq_tools(tools) -> list[dict]:
          "function": {"name": t.name, "description": t.description or "", "parameters": t.inputSchema}}
         for t in tools
     ]
+
+
+def compact(texte: str) -> str:
+    """JSON sans indentation : moins de tokens envoyés à Groq (limite de débit serrée)."""
+    try:
+        return json.dumps(json.loads(texte), ensure_ascii=False, separators=(",", ":"))
+    except ValueError:
+        return texte
+
+
+async def complete(client: groq.AsyncGroq, **kwargs):
+    """Appel Groq ; sur limite de débit (tokens/minute), attend le délai indiqué puis réessaie."""
+    for essai in range(RATE_RETRIES + 1):
+        try:
+            return await client.chat.completions.create(**kwargs)
+        except groq.RateLimitError as e:
+            if essai == RATE_RETRIES:
+                raise
+            m = re.search(r"try again in (\d+(?:\.\d+)?)(ms|s)", str(e))
+            attente = float(m.group(1)) / (1000 if m.group(2) == "ms" else 1) if m else 10.0
+            attente = min(attente + 0.5, MAX_RATE_WAIT)
+            log.warning("Groq : limite de débit, nouvel essai dans %.1f s", attente)
+            await asyncio.sleep(attente)
 
 
 async def run_tool(session: ClientSession, name: str, raw_args: str) -> str:
@@ -45,7 +71,7 @@ async def run_tool(session: ClientSession, name: str, raw_args: str) -> str:
     if res.isError:
         log.warning("Outil %s en erreur : %s", name, texte)   # détail côté serveur uniquement
         return "Erreur : l'outil a échoué, ne donne aucune donnée pour cette partie."
-    return texte[:MAX_TOOL_CHARS]
+    return compact(texte)[:MAX_TOOL_CHARS]
 
 
 async def chat_with_tools(question: str, system_prompt: str, api_key: str) -> tuple[str, list[str]]:
@@ -63,8 +89,8 @@ async def chat_with_tools(question: str, system_prompt: str, api_key: str) -> tu
                     # Dernier tour sans outils : force une réponse finale.
                     extra = {"tools": tools, "tool_choice": "auto"} if tour < MAX_TURNS - 1 else {}
                     try:
-                        completion = await client.chat.completions.create(
-                            model=model, messages=messages, **extra
+                        completion = await complete(
+                            client, model=model, messages=messages, **extra
                         )
                     except groq.BadRequestError as e:
                         if "tool_use_failed" in str(e) and tour < MAX_TURNS - 1:

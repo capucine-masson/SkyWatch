@@ -383,3 +383,193 @@ body.page-carte .hero { display: block; }
 #sky .dot { fill: var(--accent); stroke: var(--highlight); stroke-width: 1.5; }
 #sky .dot.top { fill: var(--highlight); }
 #sky .label { fill: var(--text); font: 10px "Azeret Mono", monospace; }
+
+/* ---------- Carte du ciel : tiroir à droite ---------- */
+:root { --drawer-w: min(440px, 100vw); }
+
+.sky-toggle {
+  position: fixed;
+  top: 1rem;
+  right: 1.2rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  height: 46px;
+  padding: 0 12px;
+  color: var(--highlight);
+  background: rgba(7, 18, 51, .6);
+  border: 1px solid rgba(119, 133, 172, .45);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 24px rgba(3, 6, 25, .45);
+  transition: right .55s var(--ease), background .4s, border-color .3s, box-shadow .4s, transform .25s var(--ease);
+}
+.sky-toggle:hover, .sky-toggle:focus-visible {
+  border-color: var(--highlight);
+  box-shadow: 0 6px 24px rgba(3, 6, 25, .45), 0 0 22px rgba(154, 198, 197, .35);
+}
+.sky-toggle:active { transform: scale(.94); }
+.sky-toggle svg { width: 24px; height: 24px; flex: none; overflow: visible; }
+
+/* libellé qui se déploie vers la gauche au survol */
+.sky-toggle-label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  color: var(--highlight);
+  transition: max-width .5s var(--ease), opacity .35s;
+}
+.sky-toggle:hover .sky-toggle-label,
+.sky-toggle:focus-visible .sky-toggle-label { max-width: 9rem; opacity: 1; }
+
+.cst-line { fill: none; stroke: var(--highlight); stroke-opacity: .55; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
+.cst-star {
+  fill: var(--highlight);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cst-twinkle 3.2s ease-in-out infinite;
+}
+@keyframes cst-twinkle {
+  0%, 100% { opacity: .55; transform: scale(.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.sky-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  width: var(--drawer-w);
+  background: linear-gradient(200deg, rgba(54, 5, 104, .6), rgba(5, 12, 40, .94) 55%);
+  backdrop-filter: blur(14px);
+  border-left: 1px solid rgba(154, 198, 197, .22);
+  box-shadow: -12px 0 48px rgba(3, 6, 25, .55);
+  transform: translateX(105%);
+  visibility: hidden;
+  transition: transform .6s var(--ease), visibility 0s .6s;
+}
+.sky-drawer-inner {
+  height: 100%;
+  padding: 1.3rem 1.2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  overflow-y: auto;
+}
+.sky-drawer-inner > * {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity .5s var(--ease), transform .6s var(--ease);
+}
+
+body.sky-open .sky-drawer { transform: none; visibility: visible; transition: transform .6s var(--ease), visibility 0s; }
+body.sky-open .sky-drawer-inner > * { opacity: 1; transform: none; }
+body.sky-open .sky-drawer-inner > :nth-child(2) { transition-delay: .18s; }
+body.sky-open .sky-drawer-inner > :nth-child(3) { transition-delay: .26s; }
+body.sky-open .sky-drawer-inner > :nth-child(4) { transition-delay: .34s; }
+body.sky-open .sky-drawer-inner > :nth-child(5) { transition-delay: .42s; }
+
+/* la pastille suit le bord du tiroir */
+body.sky-open .sky-toggle {
+  right: calc(var(--drawer-w) + .9rem);
+  background: var(--accent);
+  border-color: var(--highlight);
+  box-shadow: 0 6px 24px rgba(3, 6, 25, .45), 0 0 26px rgba(154, 198, 197, .3);
+}
+
+.sky-head {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.sky-head h2 {
+  margin: 0;
+  font-family: "Asar", serif;
+  font-weight: 400;
+  font-size: 1.6rem;
+  color: var(--highlight);
+  text-shadow: 0 0 24px rgba(154, 198, 197, .3);
+}
+.sky-head .note { margin: .2rem 0 0; }
+
+.icon-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  color: var(--muted);
+  background: rgba(7, 18, 51, .5);
+  border: 1px solid rgba(119, 133, 172, .35);
+  border-radius: 50%;
+}
+.icon-btn:hover { color: var(--highlight); border-color: var(--highlight); transform: translateX(2px); }
+.icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.sky-drawer .sky-wrap { animation: none; width: 100%; }
+.sky-drawer #sky { animation: dome-glow 6s ease-in-out infinite alternate; }
+@keyframes dome-glow {
+  from { box-shadow: 0 10px 40px rgba(3, 6, 25, .45), 0 0 0 rgba(154, 198, 197, 0); }
+  to { box-shadow: 0 10px 40px rgba(3, 6, 25, .45), 0 0 34px rgba(154, 198, 197, .16); }
+}
+
+.infos { display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem; }
+.info-chip {
+  padding: .2rem .65rem;
+  font: .72rem "Azeret Mono", monospace;
+  color: var(--highlight);
+  background: rgba(7, 18, 51, .55);
+  border: 1px solid rgba(119, 133, 172, .35);
+  border-radius: 999px;
+}
+.sky-drawer .infos { font: .75rem "Azeret Mono", monospace; color: var(--muted); }
+.sky-drawer .legend { max-width: 34ch; line-height: 1.6; }
+
+.sky-drawer .link {
+  padding: 0;
+  font: .72rem "Azeret Mono", monospace;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sky-drawer .link:hover:not(:disabled) { color: var(--highlight); }
+
+/* détails de la carte */
+#sky .bgstar { fill: #fff; opacity: .5; animation: twinkle 5s ease-in-out infinite alternate; }
+#sky .rim { stroke: var(--muted); stroke-opacity: .55; stroke-width: 1; }
+#sky .track { animation: track-in .5s var(--ease) both; }
+#sky .lit { filter: url(#glow); }
+#sky .dot.top { filter: url(#glow); }
+#sky .ping {
+  fill: none;
+  stroke: var(--highlight);
+  stroke-width: 1.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ping 2.4s ease-out infinite;
+}
+@keyframes track-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ping {
+  from { opacity: .8; transform: scale(1); }
+  to { opacity: 0; transform: scale(3.4); }
+}
+
+@media (max-width: 520px) {
+  /* le tiroir occupe tout l'écran : on replie avec la flèche du tiroir */
+  body.sky-open .sky-toggle { opacity: 0; pointer-events: none; }
+}
+
+/* sur grand écran, le chat se recentre dans l'espace laissé par le tiroir */
+.stage { transition: transform .6s var(--ease); }
+@media (min-width: 1000px) {
+  body.sky-open .stage { transform: translateX(calc(var(--drawer-w) / -2)); }
+}
