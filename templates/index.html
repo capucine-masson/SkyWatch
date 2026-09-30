@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SkyWatch — Que voir ce soir dans le ciel ?</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Actor&family=Asar&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  <div class="stars" aria-hidden="true"></div>
+
+  <aside class="sidebar" aria-label="Historique">
+    <span class="sidebar-hint note" aria-hidden="true">historique</span>
+    <div class="sidebar-panel">
+      <h2>Dernières questions</h2>
+      <ul id="history" class="history-list"></ul>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <header class="hero">
+      <h1>SkyWatch</h1>
+      <p class="tagline">Que voir ce soir dans le ciel ?</p>
+    </header>
+
+    <div id="messages" class="messages" aria-live="polite"></div>
+
+    <div class="composer-wrap">
+      <form id="ask-form" class="composer">
+        <input id="question" type="text" maxlength="1000" required autocomplete="off"
+               placeholder="Qu'est-ce que je peux observer ce soir depuis chez moi ?">
+        <button id="ask-btn" type="submit">Demander</button>
+      </form>
+
+      <div class="cityline">
+        <label for="ville" class="note">ville</label>
+        <input id="ville" type="text" maxlength="100" placeholder="ex. Lyon" value="{{ ville }}" autocomplete="off">
+        <button id="save-ville" type="button" class="link">enregistrer</button>
+        <span id="ville-status" class="note" role="status"></span>
+      </div>
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', path='app.js') }}"></script>
+</body>
+</html>

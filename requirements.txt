@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+jinja2
+python-dotenv
+groq
+mcp<2
+httpx
+skyfield
