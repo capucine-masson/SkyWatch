@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SkyWatch — Carte du ciel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Actor&family=Asar&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body class="page-carte">
+  <div class="stars" aria-hidden="true"></div>
+
+  <main class="stage">
+    <a class="corner-link note" href="/">← retour au chat</a>
+
+    <header class="hero">
+      <h1>Carte du ciel</h1>
+      <p class="tagline">Prochain passage de l'ISS</p>
+    </header>
+
+    <form id="carte-form" class="composer">
+      <input id="ville" type="text" maxlength="100" autocomplete="off"
+             placeholder="Ville (ex. Lyon)" value="{{ ville }}">
+      <button id="carte-btn" type="submit">Afficher</button>
+    </form>
+
+    <p id="infos" class="note infos" role="status"></p>
+
+    <div class="sky-wrap">
+      <svg id="sky" viewBox="0 0 400 400" role="img" aria-label="Carte du ciel : trajectoire de l'ISS"></svg>
+    </div>
+    <p class="note legend">vue vers le haut : centre = zénith, bord = horizon ·
+      trait plein = ISS visible à l'œil nu, pointillés = non visible</p>
+  </main>
+
+  <script src="{{ url_for('static', path='carte.js') }}"></script>
+</body>
+</html>

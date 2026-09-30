@@ -6,3 +6,4 @@ groq
 mcp<2
 httpx
 skyfield
+tzdata

@@ -349,3 +349,37 @@ button:disabled { opacity: .55; cursor: wait; }
     transition: none !important;
   }
 }
+
+/* ---------- Lien vers la carte / page carte du ciel ---------- */
+.corner-link {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.2rem;
+  text-decoration: none;
+  transition: color .3s;
+}
+.corner-link:hover, .corner-link:focus-visible { color: var(--highlight); }
+
+body.page-carte { overflow-y: auto; }
+body.page-carte .stage { height: auto; min-height: 100%; justify-content: flex-start; padding-top: 2.5rem; }
+body.page-carte .hero { display: block; }
+.infos { min-height: 1.2em; text-align: center; margin: 0; overflow-wrap: anywhere; }
+.legend { text-align: center; margin: 0; }
+
+.sky-wrap { display: flex; justify-content: center; animation: rise .9s var(--ease) .15s both; }
+#sky {
+  width: min(100%, 520px);
+  height: auto;
+  background: radial-gradient(circle, rgba(54, 5, 104, .55), rgba(5, 13, 42, .75));
+  border: 1px solid rgba(119, 133, 172, .35);
+  border-radius: 50%;
+  box-shadow: 0 10px 40px rgba(3, 6, 25, .45);
+}
+#sky .grid { fill: none; stroke: var(--muted); stroke-opacity: .4; stroke-width: 1; }
+#sky .tick { fill: var(--muted); font: 9px "Azeret Mono", monospace; }
+#sky .cardinal { fill: var(--highlight); font: 14px "Asar", serif; }
+#sky .track { stroke: var(--muted); stroke-width: 2; stroke-dasharray: 4 4; stroke-linecap: round; }
+#sky .track.vis { stroke: var(--highlight); stroke-dasharray: none; stroke-width: 3; }
+#sky .dot { fill: var(--accent); stroke: var(--highlight); stroke-width: 1.5; }
+#sky .dot.top { fill: var(--highlight); }
+#sky .label { fill: var(--text); font: 10px "Azeret Mono", monospace; }
