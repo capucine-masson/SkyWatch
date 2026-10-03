@@ -1,7 +1,7 @@
 """Serveur MCP SkyWatch (transport stdio).
 
 Outils : geocoder, meteo_ciel, passages_iss, satellites_visibles, prochain_bon_passage,
-planetes_visibles, etoiles_visibles.
+planetes_visibles, etoiles_visibles, ciel_profond_visible, apercu_ce_soir.
 Sources : Open-Meteo (géocodage + météo, sans clé) et CelesTrak (TLE, sans clé) ;
 calculs orbitaux avec skyfield.
 
@@ -21,6 +21,7 @@ from skyfield import almanac
 from skyfield.api import EarthSatellite, Loader, Star, wgs84
 from skyfield.magnitudelib import planetary_magnitude
 
+from ciel_profond_data import OBJETS as OBJETS_CIEL_PROFOND
 from etoiles_data import CONSTELLATIONS
 
 HTTP_TIMEOUT = 15.0            # secondes, tous les appels HTTP externes
@@ -51,6 +52,8 @@ MAG_OEIL_NU = 5.5              # magnitude limite à l'œil nu (ciel correct)
 PLANETE_MIN_ALT = 5.0          # hauteur minimale (°) pour observer une planète
 PLANETES_LUMINEUSES = {"Vénus", "Jupiter"}   # visibles dès le crépuscule (soleil sous -1°)
 ETOILE_SOLEIL_MAX = -12.0      # soleil sous -12° : les étoiles brillantes ressortent
+CIEL_PROFOND_SOLEIL_MAX = -18.0   # nuit astronomique : nécessaire pour les objets diffus
+CIEL_PROFOND_MIN_ALT = 20.0    # hauteur minimale (°) : plus bas, l'atmosphère les éteint
 PHASES_LUNE = ["Nouvelle lune", "Premier croissant", "Premier quartier", "Gibbeuse croissante",
                "Pleine lune", "Gibbeuse décroissante", "Dernier quartier", "Dernier croissant"]
 
@@ -460,6 +463,36 @@ def planetes_visibles(lat: float, lon: float, fuseau: str) -> dict:
     }
 
 
+def _instant_ciel(observer, eph, tz: ZoneInfo, heure: str, soleil_max: float):
+    """Instant d'observation : `heure` (HH:MM locale, prochaine occurrence) ou début de la prochaine
+    période où le soleil passe sous `soleil_max`. Renvoie (instant, None) ou (None, dict d'erreur)."""
+    if heure.strip():
+        try:
+            h = datetime.strptime(heure.strip(), "%H:%M")
+        except ValueError:
+            return None, {"erreur": f"Heure invalide : {heure!r} (format attendu HH:MM)"}
+        maintenant = datetime.now(tz)
+        cible = maintenant.replace(hour=h.hour, minute=h.minute, second=0, microsecond=0)
+        if cible <= maintenant:
+            cible += timedelta(days=1)
+        return ts.from_datetime(cible), None
+    t0 = ts.now()
+    tt = ts.tt_jd(t0.tt + np.arange(0, 24 * 6 + 1) / 144)       # 24 h, pas de 10 min
+    sun_alt = observer.at(tt).observe(eph["sun"]).apparent().altaz()[0].degrees
+    sombre = np.where(sun_alt < soleil_max)[0]
+    if sombre.size == 0:
+        return None, {"message": "Ciel jamais assez sombre dans les prochaines 24 h à cet endroit."}
+    return tt[int(sombre[0])], None
+
+
+def _lune_ici(eph, ici, t) -> dict:
+    """Éclairement et hauteur de la Lune à l'instant t (`ici` = observer.at(t))."""
+    phase = float(almanac.moon_phase(eph, t).degrees)
+    hauteur = float(ici.observe(eph["moon"]).apparent().altaz()[0].degrees)
+    return {"illumination_pct": round((1 - np.cos(np.radians(phase))) / 2 * 100),
+            "hauteur_deg": round(hauteur)}
+
+
 @cache
 def _etoiles() -> dict[str, list[tuple[str, float, Star]]]:
     return {
@@ -472,41 +505,21 @@ def _etoiles() -> dict[str, list[tuple[str, float, Star]]]:
 
 @mcp.tool()
 def etoiles_visibles(lat: float, lon: float, fuseau: str, heure: str = "") -> dict:
-    """Constellations et étoiles brillantes au-dessus de l'horizon (Grande Ourse, Cassiopée,
-    Orion, Cygne, Lyre… 25 constellations principales, étoiles de magnitude <= 3.7) : hauteur
-    et direction où regarder, étoile principale. `fuseau` vient de geocoder. `heure` (HH:MM,
-    heure locale, prochaine occurrence) : instant voulu, par ex. "23:00" ; par défaut le début
-    de la nuit (ciel assez sombre). Ne couvre pas galaxies ni ciel profond ; ne tient compte
-    ni de la pollution lumineuse ni des obstacles autour de l'observateur."""
+    """Constellations (Grande Ourse, Orion, Cygne…) et étoiles brillantes au-dessus de l'horizon :
+    hauteur, direction, étoile principale. `fuseau` vient de geocoder. `heure` (HH:MM locale) :
+    instant voulu ; par défaut le début de la nuit. Ignore pollution lumineuse et obstacles."""
     tz = _tz(fuseau)
     if tz is None:
         return {"erreur": f"Fuseau inconnu : {fuseau}"}
     eph = _ephemeris()
     observer = eph["earth"] + wgs84.latlon(lat, lon)
 
-    if heure.strip():
-        try:
-            h = datetime.strptime(heure.strip(), "%H:%M")
-        except ValueError:
-            return {"erreur": f"Heure invalide : {heure!r} (format attendu HH:MM)"}
-        maintenant = datetime.now(tz)
-        cible = maintenant.replace(hour=h.hour, minute=h.minute, second=0, microsecond=0)
-        if cible <= maintenant:
-            cible += timedelta(days=1)
-        t = ts.from_datetime(cible)
-    else:
-        t0 = ts.now()
-        tt = ts.tt_jd(t0.tt + np.arange(0, 24 * 6 + 1) / 144)       # 24 h, pas de 10 min
-        sun_alt = observer.at(tt).observe(eph["sun"]).apparent().altaz()[0].degrees
-        sombre = np.where(sun_alt < ETOILE_SOLEIL_MAX)[0]
-        if sombre.size == 0:
-            return {"message": "Ciel jamais assez sombre dans les prochaines 24 h à cet endroit."}
-        t = tt[int(sombre[0])]
+    t, erreur = _instant_ciel(observer, eph, tz, heure, ETOILE_SOLEIL_MAX)
+    if erreur:
+        return erreur
 
     ici = observer.at(t)
     sun_h = float(ici.observe(eph["sun"]).apparent().altaz()[0].degrees)
-    phase = float(almanac.moon_phase(eph, t).degrees)
-    lune_h = float(ici.observe(eph["moon"]).apparent().altaz()[0].degrees)
 
     visibles, sous_horizon, brillantes = [], [], []
     for nom, etoiles in _etoiles().items():
@@ -540,15 +553,118 @@ def etoiles_visibles(lat: float, lon: float, fuseau: str, heure: str = "") -> di
         "heure_observation": _fmt(t, tz),
         "hauteur_soleil_deg": round(sun_h),
         "ciel_assez_sombre": sun_h < ETOILE_SOLEIL_MAX,
-        "lune": {"illumination_pct": round((1 - np.cos(np.radians(phase))) / 2 * 100),
-                 "hauteur_deg": round(lune_h)},
-        "constellations": visibles,
+        "lune": _lune_ici(eph, ici, t),
+        "constellations": visibles[:12],
         "sous_l_horizon": sous_horizon,
-        "etoiles_les_plus_brillantes": brillantes[:10],
-        "remarque": "Magnitude : plus la valeur est basse, plus l'étoile est brillante ; en ville "
-                    "on ne voit guère que celles de magnitude < 3.5, et la Lune haute et éclairée "
-                    "éteint les plus faibles.",
+        "etoiles_les_plus_brillantes": brillantes[:6],
+        "remarque": "Magnitude basse = étoile brillante ; en ville, seules celles < 3.5 se voient ; "
+                    "une Lune haute et éclairée éteint les plus faibles.",
     }
+
+
+@cache
+def _ciel_profond() -> list[tuple[str, str, str, str, float, Star]]:
+    return [(des, nom, type_, cst, mag, Star(ra_hours=ra / 15, dec_degrees=dec))
+            for des, nom, type_, cst, mag, ra, dec, _taille in OBJETS_CIEL_PROFOND]
+
+
+def _instrument(mag: float, type_: str) -> str:
+    """Instrument conseillé sous un ciel noir. Une galaxie est diffuse : sa lumière est étalée,
+    elle est plus difficile que sa magnitude ne le laisse croire (+1)."""
+    effective = mag + (1.0 if type_ == "galaxie" else 0.0)
+    if effective <= 4.6 and type_ != "amas globulaire":
+        return "œil nu (ciel bien noir)"
+    return "jumelles" if effective <= 8.0 else "télescope"
+
+
+@mcp.tool()
+def ciel_profond_visible(lat: float, lon: float, fuseau: str, heure: str = "") -> dict:
+    """Galaxies, nébuleuses et amas d'étoiles (Messier, Pléiades…) au-dessus de l'horizon, les plus
+    faciles d'abord : type, hauteur, direction, instrument conseillé (œil nu, jumelles, télescope).
+    `fuseau` vient de geocoder. `heure` (HH:MM locale) : instant voulu ; par défaut le début de la
+    nuit astronomique. Ignore pollution lumineuse et obstacles."""
+    tz = _tz(fuseau)
+    if tz is None:
+        return {"erreur": f"Fuseau inconnu : {fuseau}"}
+    eph = _ephemeris()
+    observer = eph["earth"] + wgs84.latlon(lat, lon)
+    t, erreur = _instant_ciel(observer, eph, tz, heure, CIEL_PROFOND_SOLEIL_MAX)
+    if erreur:
+        return erreur
+
+    ici = observer.at(t)
+    sun_h = float(ici.observe(eph["sun"]).apparent().altaz()[0].degrees)
+    lune = _lune_ici(eph, ici, t)
+
+    visibles = []
+    for des, nom, type_, cst, mag, star in _ciel_profond():
+        alt, az, _ = ici.observe(star).apparent().altaz()
+        if alt.degrees < CIEL_PROFOND_MIN_ALT:
+            continue
+        visibles.append({
+            "objet": f"{des} - {nom}" if nom else des, "type": type_, "constellation": cst,
+            "magnitude": mag, "hauteur_deg": round(float(alt.degrees)),
+            "direction": _cardinal(float(az.degrees)), "instrument": _instrument(mag, type_),
+        })
+    visibles.sort(key=lambda o: o["magnitude"])
+
+    return {
+        "fuseau": fuseau,
+        "heure_observation": _fmt(t, tz),
+        "hauteur_soleil_deg": round(sun_h),
+        "ciel_assez_sombre": sun_h < CIEL_PROFOND_SOLEIL_MAX,
+        "lune": lune,
+        "lune_gene": lune["hauteur_deg"] > 0 and lune["illumination_pct"] >= 40,
+        "objets_au_dessus_horizon": len(visibles),
+        "objets": visibles[:10],
+        "remarque": "Taches pâles : il faut un ciel noir, loin des lumières de la ville (en ville, "
+                    "seuls Pléiades et nébuleuse d'Orion se devinent) ; une Lune haute les efface.",
+    }
+
+
+@mcp.tool()
+def apercu_ce_soir(lat: float, lon: float, fuseau: str) -> dict:
+    """Vue d'ensemble de la nuit en UN seul appel, à préférer pour « que voir ce soir » : météo, Lune
+    et planètes, constellations, galaxies et nébuleuses, meilleur passage de l'ISS (résumés).
+    `fuseau` vient de geocoder. Pour le détail d'un sujet, utiliser l'outil dédié."""
+    def garder(d: dict, cles: list[str]) -> dict:
+        return {k: d[k] for k in cles if k in d}
+
+    meteo = meteo_ciel(lat, lon, 12)
+    if "erreur" not in meteo:
+        nuit = [h for h in meteo["heures"] if h["nuit"] and h["nebulosite_pct"] is not None]
+        meilleure = next((h for h in nuit if h["heure"] == meteo["meilleure_heure_nuit"]), None)
+        meteo = {"nebulosite_moyenne_nuit_pct": round(sum(h["nebulosite_pct"] for h in nuit) / len(nuit)) if nuit else None,
+                 "meilleure_heure_nuit": meteo["meilleure_heure_nuit"],
+                 "nebulosite_a_cette_heure_pct": meilleure["nebulosite_pct"] if meilleure else None,
+                 "visibilite_km": meilleure["visibilite_km"] if meilleure else None}
+
+    pl = planetes_visibles(lat, lon, fuseau)
+    lune = pl.get("lune")
+    if "planetes" in pl:
+        pl = {"visibles": [garder(p, ["nom", "meilleure_heure", "hauteur_deg", "direction", "magnitude"])
+                           for p in pl["planetes"] if p["visible_oeil_nu"]],
+              "jumelles_ou_invisibles": [p["nom"] for p in pl["planetes"] if not p["visible_oeil_nu"]]}
+
+    et = etoiles_visibles(lat, lon, fuseau)
+    if "constellations" in et:
+        et = {"heure": et["heure_observation"], "ciel_assez_sombre": et["ciel_assez_sombre"],
+              "constellations": [{"nom": c["constellation"], "hauteur_deg": c["hauteur_deg"],
+                                  "direction": c["direction"], "principale": c["etoile_principale"]}
+                                 for c in et["constellations"][:6]]}
+
+    cp = ciel_profond_visible(lat, lon, fuseau)
+    if "objets" in cp:
+        cp = {**garder(cp, ["heure_observation", "ciel_assez_sombre", "lune_gene"]),
+              "objets": [garder(o, ["objet", "type", "hauteur_deg", "direction", "instrument"])
+                         for o in cp["objets"][:5]]}
+
+    iss = prochain_bon_passage(lat, lon)
+    if "meilleur" in iss:
+        iss = garder(iss["meilleur"], ["debut", "duree_s", "hauteur_max_deg", "direction",
+                                       "nebulosite_pct", "score_sur_10"])
+
+    return {"meteo": meteo, "lune": lune, "planetes": pl, "etoiles": et, "ciel_profond": cp, "iss": iss}
 
 
 if __name__ == "__main__":

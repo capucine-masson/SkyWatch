@@ -35,6 +35,10 @@ async def main(ville: str):
                        {"lat": g["lat"], "lon": g["lon"], "fuseau": g["fuseau"]})
             await call(session, "etoiles_visibles",
                        {"lat": g["lat"], "lon": g["lon"], "fuseau": g["fuseau"]})
+            await call(session, "ciel_profond_visible",
+                       {"lat": g["lat"], "lon": g["lon"], "fuseau": g["fuseau"]})
+            await call(session, "apercu_ce_soir",
+                       {"lat": g["lat"], "lon": g["lon"], "fuseau": g["fuseau"]})
 
 
 if __name__ == "__main__":

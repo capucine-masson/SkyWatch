@@ -26,23 +26,70 @@ async function api(url, options) {
   return data;
 }
 
+// Réponse structurée (« ## 🌙 Titre », « - puce », « Conseil : … ») -> sections lisibles.
+// Tout passe par textContent ; sans balise « ## », on garde le texte brut.
+function renderAnswer(text) {
+  const clean = text.replace(/\*\*/g, "");
+  if (!/^##\s/m.test(clean)) return el("div", "rich plain", clean);
+
+  const root = el("div", "rich");
+  let section = null;
+  let list = null;
+  const newSection = () => {
+    section = el("section", "rich-sec");
+    section.style.setProperty("--i", root.children.length);
+    root.appendChild(section);
+    list = null;
+    return section;
+  };
+
+  clean.split(/\r?\n/).forEach((raw) => {
+    const line = raw.trim();
+    if (!line) return;
+
+    if (line.startsWith("##")) {
+      const title = line.replace(/^#+\s*/, "");
+      const [first, ...rest] = title.split(/\s+/);
+      const hasIcon = rest.length > 0 && !/^[\p{L}\p{N}]/u.test(first);
+      const head = el("header", "rich-head");
+      if (hasIcon) head.appendChild(el("span", "rich-icon", first));
+      head.appendChild(el("h3", null, hasIcon ? rest.join(" ") : title));
+      newSection().appendChild(head);
+    } else if (/^conseil\s*:/i.test(line)) {
+      const tip = el("div", "rich-tip");
+      tip.appendChild(el("span", "rich-tip-label", "Conseil"));
+      tip.appendChild(el("p", null, line.replace(/^conseil\s*:\s*/i, "")));
+      root.appendChild(tip);
+      section = null;
+    } else if (/^[-•]\s+/.test(line)) {
+      if (!section) newSection();
+      if (!list) {
+        list = el("ul", "rich-list");
+        section.appendChild(list);
+      }
+      const item = el("li");
+      const body = line.replace(/^[-•]\s+/, "");
+      const cut = body.indexOf(" : ");
+      if (cut > 0 && cut <= 34) {   // « Grande Ourse : nord-ouest… » -> libellé mis en valeur
+        item.appendChild(el("strong", null, body.slice(0, cut)));
+        item.appendChild(document.createTextNode(` : ${body.slice(cut + 3)}`));
+      } else {
+        item.textContent = body;
+      }
+      list.appendChild(item);
+    } else {
+      root.appendChild(el("p", "rich-p", line));
+    }
+  });
+  return root;
+}
+
 function addMessage(kind, text) {
   document.body.classList.add("started");
   const div = el("div", `msg ${kind}`, text);
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
   return div;
-}
-
-function renderTools(container, outils) {
-  const row = el("div", "tools");
-  row.appendChild(el("span", null, "outils appelés :"));
-  if (outils.length === 0) {
-    row.appendChild(el("span", null, "aucun"));
-  } else {
-    outils.forEach((name) => row.appendChild(el("span", "chip", name)));
-  }
-  container.appendChild(row);
 }
 
 async function loadHistory() {
@@ -57,8 +104,9 @@ async function loadHistory() {
       const li = el("li");
       const details = el("details");
       details.appendChild(el("summary", null, item.question));
-      details.appendChild(el("p", "answer", item.reponse));
-      renderTools(details, item.outils);
+      const answer = renderAnswer(item.reponse);
+      answer.classList.add("answer");
+      details.appendChild(answer);
       details.appendChild(el("span", "note when", item.created_at));
       li.appendChild(details);
       historyEl.appendChild(li);
@@ -86,8 +134,7 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify({ question }),
     });
     pending.className = "msg bot";
-    pending.textContent = data.reponse;
-    renderTools(pending, data.outils);
+    pending.replaceChildren(renderAnswer(data.reponse));
     loadHistory();
   } catch (err) {
     pending.className = "msg bot error";

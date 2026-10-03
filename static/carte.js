@@ -110,7 +110,7 @@
 
     const first = pts[0], last = pts[pts.length - 1];
     const top = pts.reduce((m, p) => (p.alt > m.alt ? p : m), pts[0]);
-    [[first, "début", "start"], [top, `max ${Math.round(top.alt)}°`, "top"], [last, "fin", "end"]]
+    [[first, "apparaît", "start"], [top, "sommet", "top"], [last, "disparaît", "end"]]
       .forEach(([p, label, cls]) => {
         const [x, y] = project(p.az, p.alt);
         if (cls === "top") svg.appendChild(node("circle", { cx: x, cy: y, r: 4, class: "ping" }));
@@ -122,19 +122,58 @@
       });
   }
 
-  // Infos du passage : une pastille par élément (chaîne simple pour un message d'erreur).
+  const DIRECTIONS = {
+    N: "nord", NNE: "nord-nord-est", NE: "nord-est", ENE: "est-nord-est", E: "est", ESE: "est-sud-est",
+    SE: "sud-est", SSE: "sud-sud-est", S: "sud", SSO: "sud-sud-ouest", SO: "sud-ouest", OSO: "ouest-sud-ouest",
+    O: "ouest", ONO: "ouest-nord-ouest", NO: "nord-ouest", NNO: "nord-nord-ouest",
+  };
+  const mot = (code) => DIRECTIONS[code] || code;
+
+  // Hauteur en mots : un poing tendu à bout de bras couvre environ 10° de ciel.
+  function hauteurEnMots(deg) {
+    if (deg < 15) return "très bas dans le ciel (à peu près un poing tendu au-dessus de l'horizon)";
+    if (deg < 35) return "assez bas (deux à trois poings tendus au-dessus de l'horizon)";
+    if (deg < 60) return "à mi-hauteur dans le ciel";
+    return "très haut, presque au-dessus de votre tête";
+  }
+
+  function dureeEnMots(s) {
+    if (s < 60) return `${s} secondes`;
+    const min = Math.round(s / 60);
+    return min === 1 ? "environ 1 minute" : `environ ${min} minutes`;
+  }
+
+  function jourEnMots(debut) {   // "2026-10-01 19:20" -> "Jeudi 1 octobre"
+    const [y, m, d] = debut.slice(0, 10).split("-").map(Number);
+    const txt = new Date(y, m - 1, d).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+    return txt.charAt(0).toUpperCase() + txt.slice(1);
+  }
+
+  function ligne(tag, className, text) {
+    const n = document.createElement(tag);
+    n.className = className;
+    n.textContent = text;   // jamais innerHTML
+    return n;
+  }
+
+  // Résumé du passage en phrases simples (chaîne = message d'attente ou d'erreur).
   function setInfos(content) {
     infosEl.replaceChildren();
     if (typeof content === "string") {
-      infosEl.textContent = content;
+      infosEl.appendChild(ligne("p", "resume-msg", content));
       return;
     }
-    content.forEach((part) => {
-      const chip = document.createElement("span");
-      chip.className = "info-chip";
-      chip.textContent = part;
-      infosEl.appendChild(chip);
-    });
+    const { ville, passage: p } = content;
+    const dir = /de (\S+) vers (\S+)/.exec(p.direction);
+    infosEl.appendChild(ligne("p", "resume-when", `${jourEnMots(p.debut)} · ${p.debut.slice(11)}`));
+    infosEl.appendChild(ligne("p", "resume-text",
+      `La Station spatiale internationale (ISS) passera au-dessus de ${ville}. ` +
+      (dir ? `Elle apparaîtra du côté ${mot(dir[1])}, puis disparaîtra du côté ${mot(dir[2])}, ` : "Elle traversera le ciel ") +
+      `en ${dureeEnMots(p.duree_s)}.`));
+    infosEl.appendChild(ligne("p", "resume-text",
+      `Au plus haut, elle sera ${hauteurEnMots(p.hauteur_max_deg)}, du côté ${mot(p.direction_hauteur_max)}.`));
+    infosEl.appendChild(ligne("p", p.visible_oeil_nu ? "resume-badge ok" : "resume-badge no",
+      p.visible_oeil_nu ? "Visible à l'œil nu" : `Difficile à voir : ${p.raison_non_visible}`));
   }
 
   async function load() {
@@ -148,13 +187,7 @@
       const p = data.passage;
       drawGrid();
       drawPass(p);
-      setInfos([
-        data.ville,
-        `${p.debut} → ${p.fin.slice(11)}`,
-        `hauteur max ${p.hauteur_max_deg}°`,
-        p.direction,
-        p.visible_oeil_nu ? "visible à l'œil nu" : `non visible (${p.raison_non_visible})`,
-      ]);
+      setInfos({ ville: data.ville, passage: p });
     } catch (err) {
       drawGrid();
       setInfos(err.message);

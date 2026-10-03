@@ -38,7 +38,7 @@
       <header class="sky-head">
         <div>
           <h2>Carte du ciel</h2>
-          <p class="note">prochain passage de l'ISS</p>
+          <p class="note">le prochain passage de la Station spatiale</p>
         </div>
         <button id="sky-close" class="icon-btn" type="button" aria-label="Replier la carte du ciel">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 5 7 7-7 7M13 5l7 7-7 7"/></svg>
@@ -48,9 +48,20 @@
       <div class="sky-wrap">
         <svg id="sky" viewBox="0 0 400 400" role="img" aria-label="Carte du ciel : trajectoire de l'ISS"></svg>
       </div>
-      <p id="infos" class="infos" role="status"></p>
-      <p class="note legend">vue vers le haut : centre = zénith, bord = horizon ·
-        trait plein = ISS visible à l'œil nu, pointillés = non visible</p>
+      <div id="infos" class="resume" role="status"></div>
+
+      <section class="howto" aria-labelledby="howto-title">
+        <h3 id="howto-title">Comment lire cette carte ?</h3>
+        <ul>
+          <li><b>Imaginez le ciel au-dessus de vous.</b> Le centre, c'est juste au-dessus de votre tête ;
+            le bord, c'est l'horizon.</li>
+          <li><b>N, E, S, O</b> = nord, est, sud, ouest. L'est est à gauche : c'est normal, on regarde vers le haut.</li>
+          <li><b>Le trait</b> montre le chemin de l'ISS. Trait lumineux : visible à l'œil nu ;
+            pointillés : elle passe, mais on ne la verra pas.</li>
+          <li><b>À quoi s'attendre :</b> un point très brillant qui avance sans clignoter, comme un avion silencieux.</li>
+          <li class="fine">Les petits points blancs du fond sont décoratifs, ce ne sont pas de vraies étoiles.</li>
+        </ul>
+      </section>
       <button id="carte-btn" type="button" class="link">actualiser</button>
     </div>
   </aside>
